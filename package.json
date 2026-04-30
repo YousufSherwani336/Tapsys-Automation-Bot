@@ -1,0 +1,46 @@
+{
+  "name": "whatsapp-org-agent",
+  "version": "0.1.0",
+  "description": "Multi-org WhatsApp agent platform",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p .",
+    "dev": "tsx src/main.ts",
+    "test": "vitest run",
+    "start": "node dist/main.js",
+    "start:pm2": "pm2 start pm2.config.cjs",
+    "stop:pm2": "pm2 stop pm2.config.cjs",
+    "logs": "pm2 logs"
+  },
+  "dependencies": {
+    "@hapi/boom": "^10.0.1",
+    "@mariozechner/pi-agent-core": "^0.70.2",
+    "@mariozechner/pi-ai": "^0.70.2",
+    "@whiskeysockets/baileys": "^7.0.0-rc.9",
+    "axios": "^1.15.2",
+    "better-sqlite3": "^9.6.0",
+    "canvas": "^2.11.2",
+    "dotenv": "^16.4.7",
+    "form-data": "^4.0.5",
+    "mssql": "^11.0.1",
+    "pino": "^9.6.0",
+    "qrcode-terminal": "^0.12.0",
+    "yaml": "^2.7.0",
+    "zod": "^3.24.2",
+    "zod-to-json-schema": "^3.25.2"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/mssql": "^9.1.5",
+    "@types/nock": "^11.1.0",
+    "@types/node": "^20.17.0",
+    "@types/qrcode-terminal": "^0.12.2",
+    "nock": "^13.5.6",
+    "tsx": "^4.19.2",
+    "typescript": "^5.8.3",
+    "vitest": "^3.1.1"
+  }
+}

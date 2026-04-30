@@ -1,0 +1,4 @@
+aliases:
+  issueTypes: {}        # e.g., bug: Bug, story: Story
+  statuses: {}          # e.g., done: Done, todo: "To Do"
+  priorities: {}        # e.g., urgent: Highest

@@ -1,0 +1,21 @@
+# Default values for the data_reporting module (NBP RAAST profile)
+reportTimezone: Asia/Karachi
+defaultDateRange: yesterday
+defaultRenderType: dashboard
+maxRows: 500
+queryTimeoutSeconds: 30
+
+# Active catalog
+activeCatalog: nbp-raast-thirdparty-records
+activeAggregatorCode: "00087"
+activeSuccessCode: "00"
+
+# Region mapping — may be used if KYC region joins are available
+regionMapping:
+  "2": Central
+  "3": North
+  "5": North
+  "6": North
+  "7": North
+  "1": South
+  "4": South

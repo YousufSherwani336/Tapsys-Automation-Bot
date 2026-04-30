@@ -1,0 +1,31 @@
+orgSlug: paysys
+
+# ── WhatsApp Group ─────────────────────────────────────────────────────────────
+whatsapp:
+  groupId: "120363426650469651@g.us"   # NBP <-> Tapsys group
+  requireMention: true                  # only respond when bot (@03162392033) is tagged
+
+# ── Group metadata (informational — used by audit log and prompts) ─────────────
+group:
+  displayName: "NBP <-> Tapsys"
+  botMentionNumber: "03162392033"       # local Pakistani format; WhatsApp JID = 923162392033@s.whatsapp.net
+
+# ── Active database profile ────────────────────────────────────────────────────
+database:
+  profile: OPENMMS                      # maps to DB_OPENMMS_* env vars
+
+# ── Active SQL catalog ─────────────────────────────────────────────────────────
+catalog:
+  active: nbp-raast-thirdparty-records  # catalog name referenced in module prompt
+
+# ── Report defaults ────────────────────────────────────────────────────────────
+reporting:
+  timezone: Asia/Karachi
+  defaultDateRange: yesterday           # kal = yesterday
+  defaultReport: nbp_summary_dashboard
+
+# ── Reserved ──────────────────────────────────────────────────────────────────
+memory: {}
+preprocessing:
+  voice: false
+  image: false

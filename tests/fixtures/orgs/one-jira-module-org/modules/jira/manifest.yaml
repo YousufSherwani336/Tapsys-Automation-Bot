@@ -1,0 +1,6 @@
+enabled: true
+tools:
+  - jira.create_issue
+  - jira.search_issues
+  - jira.get_issue
+  - jira.add_comment

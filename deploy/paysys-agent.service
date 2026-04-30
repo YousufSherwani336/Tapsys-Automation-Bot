@@ -1,0 +1,36 @@
+[Unit]
+Description=Paysys WhatsApp Data Reporting Agent (NBP)
+Documentation=https://github.com/your-org/whatsapp-pi-agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/apps/whatsapp-pi-agent
+
+# Load org-specific env file (copy .env.example → .env and fill real values)
+EnvironmentFile=/apps/whatsapp-pi-agent/orgs/paysys/.env
+
+Environment=ORG=paysys
+Environment=NODE_ENV=production
+
+ExecStart=/usr/bin/node dist/main.js
+
+# Restart policy — restart on crash, not on clean exit (code 0)
+Restart=on-failure
+RestartSec=10s
+StartLimitInterval=5min
+StartLimitBurst=5
+
+# Logging — stdout/stderr go to journald; use: journalctl -u paysys-agent -f
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=paysys-agent
+
+# Resource limits
+LimitNOFILE=65536
+MemoryMax=600M
+
+[Install]
+WantedBy=multi-user.target

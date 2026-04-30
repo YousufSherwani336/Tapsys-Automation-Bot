@@ -1,0 +1,3 @@
+# orgSlug is intentionally omitted to trigger a zod validation error.
+whatsapp:
+  groupId: '987654321'

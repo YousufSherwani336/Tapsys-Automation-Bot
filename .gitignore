@@ -1,0 +1,46 @@
+# ── Dependencies & build output ─────────────────────────────────────────────
+node_modules/
+dist/
+*.tsbuildinfo
+
+# ── Environment / secrets ────────────────────────────────────────────────────
+# Ignore ALL .env files everywhere …
+.env
+.env.*
+**/.env
+**/.env.*
+# … except .env.example files (safe templates) …
+!.env.example
+!**/.env.example
+# … and test fixture .env files (contain only fake/controlled values)
+!tests/fixtures/**/.env
+# … and example org .env (fake values only — used by unit tests)
+!orgs/example/.env
+
+# ── Org runtime artefacts ────────────────────────────────────────────────────
+# Ignore everything inside wa-session/runtime but track .gitkeep markers
+orgs/*/wa-session/*
+!orgs/*/wa-session/.gitkeep
+orgs/*/runtime/*
+!orgs/*/runtime/.gitkeep
+!orgs/*/runtime/logs/
+orgs/*/runtime/logs/*
+!orgs/*/runtime/logs/.gitkeep
+
+# ── Logs ─────────────────────────────────────────────────────────────────────
+logs/
+*.log
+npm-debug.log*
+
+# ── Source maps ──────────────────────────────────────────────────────────────
+*.js.map
+
+# ── OS & editor noise ────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+
+auth.json

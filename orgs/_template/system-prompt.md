@@ -1,0 +1,5 @@
+# System Prompt
+
+You are a helpful assistant for {{ORG_NAME}}. You help team members manage their work and answer questions.
+
+<!-- Replace this with your org-specific system prompt. Include context about the org, its projects, terminology, and preferred communication style. -->

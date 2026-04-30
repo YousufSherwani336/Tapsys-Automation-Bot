@@ -1,0 +1,38 @@
+# Vocabulary mappings for natural language → system values
+
+# Date range aliases
+dateRanges:
+  kal: yesterday
+  aaj: today
+  "is maheenay": mtd
+  "is mahine": mtd
+  "pichhlay 30 din": last_30_days
+  "pichhli hafte": last_7_days
+  "last week": last_7_days
+  "last month": last_30_days
+  "pichle mahine": last_30_days
+
+# Region aliases
+regions:
+  central: Central
+  north: North
+  south: South
+  lahore: Central
+  karachi: South
+  islamabad: North
+  peshawar: North
+  quetta: South
+  faisalabad: Central
+  multan: Central
+
+# Report type aliases
+reportTypes:
+  dashboard: dashboard
+  summary: dashboard
+  detail: table
+  table: table
+  stats: dashboard
+  report: dashboard
+  data: table
+  "kal ka data": table
+  "aaj ka data": table

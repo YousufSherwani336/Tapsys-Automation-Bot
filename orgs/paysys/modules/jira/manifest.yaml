@@ -1,0 +1,31 @@
+enabled: false
+tools:
+  - jira.create_issue
+  - jira.search_issues
+  - jira.get_issue
+  - jira.add_comment
+  - jira.find_assignable_users
+  - jira.search_users
+  - jira.assign_issue
+  - jira.get_issue_comments
+  - jira.list_transitions
+  - jira.transition_issue
+  - jira.get_priorities
+  - jira.get_issue_types
+  - jira.get_statuses
+  - jira.get_resolutions
+  - jira.get_fields
+  - jira.get_labels
+  - jira.get_my_permissions
+  - jira.get_server_info
+  - jira.get_link_types
+  - jira.link_issues
+  - jira.add_worklog
+  - jira.get_worklogs
+  - jira.get_watchers
+  - jira.add_watcher
+  - jira.list_projects
+  - jira.get_project
+  - jira.get_project_components
+  - jira.get_project_versions
+  - jira.get_project_statuses

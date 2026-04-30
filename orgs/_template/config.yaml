@@ -1,0 +1,7 @@
+orgSlug: REPLACE_ME
+whatsapp:
+  groupId: ""           # optional; if set, only handle messages from this group/jid
+memory: {}              # optional, reserved
+preprocessing:          # optional, all off by default in v1
+  voice: false
+  image: false
