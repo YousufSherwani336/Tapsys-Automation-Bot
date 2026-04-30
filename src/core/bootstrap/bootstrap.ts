@@ -1,4 +1,6 @@
 import pino from 'pino';
+import { resolve as pathResolve } from 'node:path';
+import { access, stat } from 'node:fs/promises';
 import { getModel } from '@mariozechner/pi-ai';
 import type { KnownProvider, Model } from '@mariozechner/pi-ai';
 import { loadOrgConfig } from '../config/index.js';
@@ -138,9 +140,26 @@ export async function bootstrap(): Promise<RunningOrgAgent> {
     async (msg) => {
       logger.debug({ org: orgContext.slug, from: msg.from }, 'processing message');
 
-      const reply = await agent.sendMessage(msg.text);
+      // ── Typing indicator: start composing presence ──
+      let typingInterval: ReturnType<typeof setInterval> | null = null;
+      const startTyping = () => {
+        wa.sendPresenceUpdate('composing', msg.from);
+        typingInterval = setInterval(() => {
+          wa.sendPresenceUpdate('composing', msg.from);
+        }, 9_000); // refresh every 9s
+      };
+      const stopTyping = () => {
+        if (typingInterval) { clearInterval(typingInterval); typingInterval = null; }
+        wa.sendPresenceUpdate('paused', msg.from);
+      };
 
-      await dispatchReply({ reply, msg, wa, dryRun, org: orgContext.slug });
+      startTyping();
+      try {
+        const reply = await agent.sendMessage(msg.text);
+        await dispatchReply({ reply, msg, wa, dryRun, org: orgContext.slug });
+      } finally {
+        stopTyping();
+      }
     },
     { logger: logger.child({ org: orgContext.slug, subsystem: 'queue' }) },
   );
@@ -207,12 +226,7 @@ async function dispatchReply(opts: {
       const post = reply.slice(splitIdx + imagePath.length).replace(/^\s*\)?/, '').trim();
       const caption = [pre, post].filter(Boolean).join('\n\n');
       logger.warn({ org, from: msg.from, imagePath }, 'Image path detected in LLM text — sending as image (fallback)');
-      if (dryRun) {
-        logger.info({ org, from: msg.from, imagePath }, '[DRY_RUN] Would send image (fallback path detection)');
-        await wa.sendText(msg.from, `[DRY_RUN] Report ready: ${imagePath}`);
-      } else {
-        await wa.sendImage(msg.from, imagePath, caption);
-      }
+      await sendImageSafely(wa, msg.from, imagePath, caption, dryRun, org);
       return;
     }
     // Fallback: send raw text if LLM didn't return structured JSON
@@ -230,18 +244,7 @@ async function dispatchReply(opts: {
         await dispatchText(wa, msg.from, 'Report generated but image path missing.', dryRun, org);
         return;
       }
-      if (dryRun) {
-        logger.info(
-          { org, from: msg.from, imagePath: parsed.imagePath, caption: parsed.caption },
-          '[DRY_RUN] Would send image',
-        );
-        await wa.sendText(
-          msg.from,
-          `[DRY_RUN] Report ready: ${parsed.imagePath}\nCaption: ${parsed.caption ?? ''}`,
-        );
-      } else {
-        await wa.sendImage(msg.from, parsed.imagePath, parsed.caption ?? '');
-      }
+      await sendImageSafely(wa, msg.from, parsed.imagePath, parsed.caption ?? '', dryRun, org);
       break;
     }
 
@@ -263,6 +266,58 @@ async function dispatchReply(opts: {
     default: {
       await dispatchText(wa, msg.from, reply, dryRun, org);
     }
+  }
+}
+
+/**
+ * Resolves image path, verifies file exists, and sends via WhatsApp.
+ * Includes full diagnostic logging for debugging image send failures.
+ */
+async function sendImageSafely(
+  wa: WhatsAppConnection,
+  jid: string,
+  imagePath: string,
+  caption: string,
+  dryRun: boolean,
+  org: string,
+): Promise<void> {
+  // Resolve to absolute path from process.cwd()
+  const resolvedPath = pathResolve(process.cwd(), imagePath);
+  logger.info({ org, jid, imagePath, resolvedPath }, '[IMAGE_DIAG] Attempting to send image');
+
+  // Verify file exists and has content
+  try {
+    await access(resolvedPath);
+  } catch {
+    logger.error({ org, jid, imagePath, resolvedPath }, '[IMAGE_DIAG] File does NOT exist');
+    await wa.sendText(jid, 'Report image generate ho gayi thi, lekin file disk par nahi mili. Admin logs check kar raha hai.');
+    return;
+  }
+
+  const fileStat = await stat(resolvedPath);
+  logger.info({ org, jid, resolvedPath, sizeBytes: fileStat.size }, '[IMAGE_DIAG] File exists');
+
+  if (fileStat.size === 0) {
+    logger.error({ org, jid, resolvedPath }, '[IMAGE_DIAG] File is empty (0 bytes)');
+    await wa.sendText(jid, 'Report image generate ho gayi thi, lekin file empty hai. Admin logs check kar raha hai.');
+    return;
+  }
+
+  if (dryRun) {
+    logger.info({ org, jid, resolvedPath, caption, sizeBytes: fileStat.size }, '[DRY_RUN] Would send image');
+    await wa.sendText(jid, `[DRY_RUN] Report ready: ${imagePath}\nCaption: ${caption}`);
+    return;
+  }
+
+  // Send image with error handling
+  try {
+    logger.info({ org, jid, resolvedPath }, '[IMAGE_DIAG] Calling wa.sendImage()');
+    await wa.sendImage(jid, resolvedPath, caption);
+    logger.info({ org, jid, resolvedPath }, '[IMAGE_DIAG] wa.sendImage() succeeded');
+  } catch (err) {
+    const errMsg = (err as Error).message ?? 'Unknown error';
+    logger.error({ org, jid, resolvedPath, error: errMsg }, '[IMAGE_DIAG] wa.sendImage() FAILED');
+    await wa.sendText(jid, 'Report image generate ho gayi thi, lekin WhatsApp media send fail hua. Admin logs check kar raha hai.');
   }
 }
 

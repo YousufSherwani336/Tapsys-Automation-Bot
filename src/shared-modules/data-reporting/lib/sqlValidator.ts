@@ -94,13 +94,19 @@ export function validateSql(sql: string): SqlValidationResult {
   }
 
   // Reject semicolons that could indicate stacked statements.
-  // Allow semicolons only inside string literals — a full parser would be needed
-  // for precision; here we reject any semicolon outside a DECLARE line.
+  // Allow semicolons only:
+  //   - inside DECLARE lines (T-SQL variable setup)
+  //   - immediately before WITH (;WITH is standard CTE opener in T-SQL)
+  // A full parser would be needed for precision; this covers real usage.
   const noDeclarelines = stripped
     .split('\n')
     .filter((line) => !/^\s*DECLARE\s/i.test(line))
     .join('\n');
-  if (/;/.test(noDeclarelines)) {
+  // Remove ;WITH pattern (valid CTE syntax) before checking for dangerous semicolons
+  const withoutCteOpener = noDeclarelines.replace(/;\s*WITH\b/gi, ' WITH');
+  // Allow a single trailing semicolon at the very end (harmless query terminator)
+  const withoutTrailingSemicolon = withoutCteOpener.replace(/;\s*$/, '');
+  if (/;/.test(withoutTrailingSemicolon)) {
     return { valid: false, reason: 'Semicolons in SELECT body are not allowed (stacked statements risk).' };
   }
 

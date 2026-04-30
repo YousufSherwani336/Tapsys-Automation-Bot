@@ -78,19 +78,17 @@ DECLARE @start_date DATE = CAST(DATEADD(DAY, -1, GETDATE()) AS DATE)
 DECLARE @end_date   DATE = CAST(DATEADD(DAY, -1, GETDATE()) AS DATE)
 
 SELECT TOP 10
-    rtr.merchant_id                        AS MerchantID,
-    m.name                                 AS MerchantName,
-    COUNT(rtr.id)                          AS TxnCount,
-    CAST(SUM(rtr.amount) AS DECIMAL(18,2)) AS TotalVolume,
-    COUNT(DISTINCT rtr.tid)                AS UniqueTIDs,
-    MAX(CAST(rtr.created_on AS DATE))      AS LastTxnDate
+    COALESCE(NULLIF(m.display_name, ''), NULLIF(m.name, ''), rtr.merchant_id) AS MerchantName,
+    COUNT(rtr.id)                        AS TxnCount,
+    CAST(SUM(rtr.amount) AS DECIMAL(18,2)) AS TotalVolume
 FROM OPENMMS.dbo.raast_thirdparty_records rtr
-LEFT JOIN OPENMMS.dbo.merchant m ON m.id = rtr.merchant_id
+LEFT JOIN OPENMMS.dbo.terminal t WITH (NOLOCK) ON t.source_tid = rtr.tid
+LEFT JOIN OPENMMS.dbo.merchant m WITH (NOLOCK) ON m.id = t.merchant_id
 WHERE
     rtr.response_code = '00'
     AND rtr.aggregator_code = '00087'
     AND CAST(rtr.created_on AS DATE) BETWEEN @start_date AND @end_date
-GROUP BY rtr.merchant_id, m.name
+GROUP BY COALESCE(NULLIF(m.display_name, ''), NULLIF(m.name, ''), rtr.merchant_id)
 ORDER BY TotalVolume DESC
 ```
 
@@ -105,24 +103,19 @@ DECLARE @start_date DATE = CAST(DATEADD(DAY, -1, GETDATE()) AS DATE)
 DECLARE @end_date   DATE = CAST(DATEADD(DAY, -1, GETDATE()) AS DATE)
 
 SELECT
-    rtr.merchant_id                        AS MerchantID,
-    m.name                                 AS MerchantName,
-    rtr.tid                                AS TID,
+    COALESCE(NULLIF(m.display_name, ''), NULLIF(m.name, ''), rtr.merchant_id) AS MerchantName,
+    rtr.tid                                AS TerminalID,
     COUNT(rtr.id)                          AS TxnCount,
-    CAST(SUM(rtr.amount) AS DECIMAL(18,2)) AS TotalVolume,
-    MIN(CAST(rtr.created_on AS DATE))      AS FirstTxnDate,
-    MAX(CAST(rtr.created_on AS DATE))      AS LastTxnDate
+    CAST(SUM(rtr.amount) AS DECIMAL(18,2)) AS TotalVolume
 FROM OPENMMS.dbo.raast_thirdparty_records rtr
-LEFT JOIN OPENMMS.dbo.merchant m ON m.id = rtr.merchant_id
+LEFT JOIN OPENMMS.dbo.terminal t WITH (NOLOCK) ON t.source_tid = rtr.tid
+LEFT JOIN OPENMMS.dbo.merchant m WITH (NOLOCK) ON m.id = t.merchant_id
 WHERE
     rtr.response_code = '00'
     AND rtr.aggregator_code = '00087'
     AND CAST(rtr.created_on AS DATE) BETWEEN @start_date AND @end_date
-    /* MERCHANT FILTER:
-       AND rtr.merchant_id = <ID>
-       OR AND m.name LIKE '%<name>%'
-    */
-GROUP BY rtr.merchant_id, m.name, rtr.tid
+    /* MERCHANT FILTER: AND m.display_name LIKE '%<name>%'  OR  AND rtr.merchant_id = '<ID>' */
+GROUP BY COALESCE(NULLIF(m.display_name, ''), NULLIF(m.name, ''), rtr.merchant_id), rtr.tid
 ORDER BY TotalVolume DESC
 ```
 
@@ -135,21 +128,20 @@ DECLARE @start_date DATE = CAST(DATEADD(DAY, -1, GETDATE()) AS DATE)
 DECLARE @end_date   DATE = CAST(DATEADD(DAY, -1, GETDATE()) AS DATE)
 
 SELECT
-    rtr.tid                                AS TID,
-    rtr.merchant_id                        AS MerchantID,
-    m.name                                 AS MerchantName,
+    rtr.tid                                AS TerminalID,
+    COALESCE(NULLIF(m.display_name, ''), NULLIF(m.name, ''), rtr.merchant_id) AS MerchantName,
     COUNT(rtr.id)                          AS TxnCount,
-    CAST(SUM(rtr.amount) AS DECIMAL(18,2)) AS TotalVolume,
-    MIN(CAST(rtr.created_on AS DATE))      AS FirstTxnDate,
-    MAX(CAST(rtr.created_on AS DATE))      AS LastTxnDate
+    CAST(SUM(rtr.amount) AS DECIMAL(18,2)) AS TotalVolume
 FROM OPENMMS.dbo.raast_thirdparty_records rtr
-LEFT JOIN OPENMMS.dbo.merchant m ON m.id = rtr.merchant_id
+LEFT JOIN OPENMMS.dbo.terminal t WITH (NOLOCK) ON t.source_tid = rtr.tid
+LEFT JOIN OPENMMS.dbo.merchant m WITH (NOLOCK) ON m.id = t.merchant_id
 WHERE
     rtr.response_code = '00'
     AND rtr.aggregator_code = '00087'
-    AND rtr.tid = '<TID_HERE>'
+    /* OPTIONAL TID FILTER: AND rtr.tid = '<TID>' */
     AND CAST(rtr.created_on AS DATE) BETWEEN @start_date AND @end_date
-GROUP BY rtr.tid, rtr.merchant_id, m.name
+GROUP BY rtr.tid, COALESCE(NULLIF(m.display_name, ''), NULLIF(m.name, ''), rtr.merchant_id)
+ORDER BY TxnCount DESC
 ```
 
 ---

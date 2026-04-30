@@ -24,6 +24,7 @@ export interface WhatsAppConnection {
   onMessage(handler: (msg: NormalizedMessage) => void): void;
   sendText(jid: string, text: string): Promise<void>;
   sendImage(jid: string, imagePath: string, caption?: string): Promise<void>;
+  sendPresenceUpdate(type: 'composing' | 'paused' | 'available', jid: string): Promise<void>;
   close(): Promise<void>;
 }
 
@@ -182,6 +183,15 @@ export async function connectWhatsApp(
 
     async sendImage(jid, imagePath, caption) {
       await sendImage(sock, jid, imagePath, caption);
+    },
+
+    async sendPresenceUpdate(type, jid) {
+      try {
+        await sock.presenceSubscribe(jid);
+        await sock.sendPresenceUpdate(type, jid);
+      } catch (err) {
+        logger.debug({ err, type, jid }, 'Presence update failed (non-fatal)');
+      }
     },
 
     async close() {
