@@ -2,6 +2,8 @@ enabled: true
 tools:
   - data_reporting.execute_sql
   - data_reporting.render_report
+  - data_reporting.render_excel
+  - data_reporting.send_email
   - data_reporting.get_memory
   - data_reporting.update_memory
   - data_reporting.system_status

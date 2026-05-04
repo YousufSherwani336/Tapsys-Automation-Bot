@@ -3,12 +3,13 @@ import { resolve as pathResolve } from 'node:path';
 import { access, stat } from 'node:fs/promises';
 import { getModel } from '@mariozechner/pi-ai';
 import type { KnownProvider, Model } from '@mariozechner/pi-ai';
+import { downloadMediaMessage } from '@whiskeysockets/baileys';
 import { loadOrgConfig } from '../config/index.js';
 import { loadOrgModules } from '../module-loader/index.js';
 import { BASE_PROMPT, composeSystemPrompt } from '../agent-runtime/index.js';
 import { ToolRegistry } from '../agent-runtime/index.js';
 import { createAgent } from '../agent-runtime/index.js';
-import type { Agent } from '../agent-runtime/index.js';
+import type { Agent, ImageContent } from '../agent-runtime/index.js';
 import { registerModules } from '../module-loader/registerModules.js';
 import { connectWhatsApp } from '../whatsapp/index.js';
 import type { WhatsAppConnection } from '../whatsapp/index.js';
@@ -18,10 +19,18 @@ import type { OrgContext } from '../../types/index.js';
 
 const logger = pino({ name: 'bootstrap' });
 
+/** Default prompt when user sends an image without any caption text. */
+const IMAGE_ONLY_PROMPT =
+  'User sent an image. Analyze the image and ask what they want if intent is unclear. ' +
+  'If it looks like a report screenshot, identify the report type/design. ' +
+  'If it looks like a transaction screenshot, extract visible transaction identifiers.';
+
 /** Structured response that the LLM agent returns as its final text. */
 interface AgentResponse {
-  type: 'image' | 'clarification' | 'text' | 'last_report' | 'error';
+  type: 'image' | 'excel' | 'email' | 'clarification' | 'text' | 'last_report' | 'error';
   imagePath?: string;
+  excelPath?: string;
+  fileName?: string;
   caption?: string;
   message?: string;
 }
@@ -155,8 +164,35 @@ export async function bootstrap(): Promise<RunningOrgAgent> {
 
       startTyping();
       try {
-        const reply = await agent.sendMessage(msg.text);
+        let images: ImageContent[] | undefined;
+        if (msg.mediaType === 'image' && msg.raw && msg.raw.key) {
+          try {
+            const buffer = await downloadMediaMessage(msg.raw as any, 'buffer', {});
+            const mimeType = msg.raw.message?.imageMessage?.mimetype ?? 'image/jpeg';
+            images = [{ type: 'image', data: (buffer as Buffer).toString('base64'), mimeType }];
+          } catch (err) {
+            logger.warn({ err, org: orgContext.slug, from: msg.from }, 'Failed to download image');
+          }
+        }
+
+        // Build the text prompt — use caption if available, otherwise provide
+        // an instructive default for image-only messages.
+        let textPrompt = msg.text;
+        if (images && !textPrompt) {
+          textPrompt = IMAGE_ONLY_PROMPT;
+        }
+
+        const reply = await agent.sendMessage(textPrompt || '', images);
         await dispatchReply({ reply, msg, wa, dryRun, org: orgContext.slug });
+      } catch (err) {
+        const errMsg = (err as Error).message ?? '';
+        if (errMsg.includes('token count') || errMsg.includes('exceeds the limit')) {
+          logger.warn({ org: orgContext.slug, from: msg.from }, 'Token limit exceeded — notifying user');
+          await wa.sendText(msg.from, 'Sorry, context limit exceed ho gayi. Please thodi der baad dubara try karein.');
+        } else {
+          logger.error({ err, org: orgContext.slug, from: msg.from }, 'Agent error — notifying user');
+          await wa.sendText(msg.from, 'Maaf kijiye, request process nahi ho saki. Please dubara try karein.');
+        }
       } finally {
         stopTyping();
       }
@@ -248,6 +284,22 @@ async function dispatchReply(opts: {
       break;
     }
 
+    case 'excel': {
+      if (!parsed.excelPath) {
+        await dispatchText(wa, msg.from, 'Excel report generated but file path missing.', dryRun, org);
+        return;
+      }
+      await sendDocumentSafely(wa, msg.from, parsed.excelPath, parsed.fileName, parsed.caption ?? '', dryRun, org);
+      break;
+    }
+
+    case 'email': {
+      // Email was sent by the send_email tool. Just confirm to user via WhatsApp.
+      const text = parsed.message ?? parsed.caption ?? 'Email send ho gayi hai.';
+      await dispatchText(wa, msg.from, text, dryRun, org);
+      break;
+    }
+
     case 'clarification':
     case 'text':
     case 'error': {
@@ -318,6 +370,53 @@ async function sendImageSafely(
     const errMsg = (err as Error).message ?? 'Unknown error';
     logger.error({ org, jid, resolvedPath, error: errMsg }, '[IMAGE_DIAG] wa.sendImage() FAILED');
     await wa.sendText(jid, 'Report image generate ho gayi thi, lekin WhatsApp media send fail hua. Admin logs check kar raha hai.');
+  }
+}
+
+/**
+ * Resolves document path, verifies file exists, and sends via WhatsApp as a document attachment.
+ */
+async function sendDocumentSafely(
+  wa: WhatsAppConnection,
+  jid: string,
+  filePath: string,
+  fileName: string | undefined,
+  caption: string,
+  dryRun: boolean,
+  org: string,
+): Promise<void> {
+  const resolvedPath = pathResolve(process.cwd(), filePath);
+  logger.info({ org, jid, filePath, resolvedPath }, '[EXCEL_DIAG] Attempting to send document');
+
+  try {
+    await access(resolvedPath);
+  } catch {
+    logger.error({ org, jid, filePath, resolvedPath }, '[EXCEL_DIAG] File does NOT exist');
+    await wa.sendText(jid, 'Excel report generate ho gayi thi, lekin file disk par nahi mili.');
+    return;
+  }
+
+  const fileStat = await stat(resolvedPath);
+  if (fileStat.size === 0) {
+    logger.error({ org, jid, resolvedPath }, '[EXCEL_DIAG] File is empty (0 bytes)');
+    await wa.sendText(jid, 'Excel report generate ho gayi thi, lekin file empty hai.');
+    return;
+  }
+
+  if (dryRun) {
+    logger.info({ org, jid, resolvedPath, caption, sizeBytes: fileStat.size }, '[DRY_RUN] Would send document');
+    await wa.sendText(jid, `[DRY_RUN] Excel ready: ${filePath}\nCaption: ${caption}`);
+    return;
+  }
+
+  try {
+    logger.info({ org, jid, resolvedPath }, '[EXCEL_DIAG] Calling wa.sendDocument()');
+    await wa.sendDocument(jid, resolvedPath, fileName, undefined, caption);
+    logger.info({ org, jid, resolvedPath }, '[EXCEL_DIAG] wa.sendDocument() succeeded');
+  } catch (err) {
+    const errMsg = (err as Error).message ?? 'Unknown error';
+    logger.error({ org, jid, resolvedPath, error: errMsg }, '[EXCEL_DIAG] wa.sendDocument() FAILED');
+    await wa.sendText(jid, 'Excel report generate ho gayi thi, lekin WhatsApp document send fail hua.');
   }
 }
 

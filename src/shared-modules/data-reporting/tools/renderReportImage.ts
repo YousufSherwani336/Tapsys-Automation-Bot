@@ -59,6 +59,14 @@ export const RenderReportInput = z.object({
     .string()
     .optional()
     .describe('Short caption to accompany the WhatsApp image message.'),
+  hideColumns: z
+    .array(z.string())
+    .optional()
+    .describe(
+      'Column keys to remove from the rendered output. ' +
+      'Use this for report modifications where user asks to hide/remove a column. ' +
+      'The SQL query stays unchanged; these columns are stripped from rows before rendering.',
+    ),
 });
 
 export type RenderReportInputType = z.infer<typeof RenderReportInput>;
@@ -86,14 +94,29 @@ export function buildRenderReportTool(
     inputSchema: RenderReportInput,
     handler: async (input) => {
       try {
+        // Strip hidden columns from rows (for report modification requests)
+        let rows = input.rows;
+        if (input.hideColumns && input.hideColumns.length > 0) {
+          const hide = new Set(input.hideColumns.map((c) => c.toLowerCase()));
+          rows = rows.map((row) => {
+            const filtered: Record<string, unknown> = {};
+            for (const [key, value] of Object.entries(row)) {
+              if (!hide.has(key.toLowerCase())) {
+                filtered[key] = value;
+              }
+            }
+            return filtered;
+          });
+        }
+
         const result = await renderer.render({
-          rows: input.rows,
+          rows,
           reportTitle: input.reportTitle,
           dateRange: input.dateRange,
           filters: input.filters,
           renderType: (input.renderType as RenderType) ?? 'comparison_table',
           truncated: input.truncated ?? false,
-          rowCount: input.rowCount ?? input.rows.length,
+          rowCount: input.rowCount ?? rows.length,
           outputDir,
           timezone,
         });

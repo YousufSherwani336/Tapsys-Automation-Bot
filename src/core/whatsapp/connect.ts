@@ -18,12 +18,13 @@ import { join } from 'node:path';
 import type { OrgContext } from '../../types/index.js';
 import type { NormalizedMessage } from './normalize.js';
 import { normalizeMessage } from './normalize.js';
-import { sendText, sendImage } from './send.js';
+import { sendText, sendImage, sendDocument } from './send.js';
 
 export interface WhatsAppConnection {
   onMessage(handler: (msg: NormalizedMessage) => void): void;
   sendText(jid: string, text: string): Promise<void>;
   sendImage(jid: string, imagePath: string, caption?: string): Promise<void>;
+  sendDocument(jid: string, filePath: string, fileName?: string, mimetype?: string, caption?: string): Promise<void>;
   sendPresenceUpdate(type: 'composing' | 'paused' | 'available', jid: string): Promise<void>;
   close(): Promise<void>;
 }
@@ -183,6 +184,10 @@ export async function connectWhatsApp(
 
     async sendImage(jid, imagePath, caption) {
       await sendImage(sock, jid, imagePath, caption);
+    },
+
+    async sendDocument(jid, filePath, fileName, mimetype, caption) {
+      await sendDocument(sock, jid, filePath, fileName, mimetype, caption);
     },
 
     async sendPresenceUpdate(type, jid) {

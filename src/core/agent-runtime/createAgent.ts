@@ -13,7 +13,7 @@
 import { Agent as PiAgent } from '@mariozechner/pi-agent-core';
 import type { AgentTool } from '@mariozechner/pi-agent-core';
 import { Type, getModel } from '@mariozechner/pi-ai';
-import type { Model } from '@mariozechner/pi-ai';
+import type { Model, ImageContent } from '@mariozechner/pi-ai';
 import { getOAuthApiKey } from '@mariozechner/pi-ai/oauth';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import { readFile, writeFile } from 'node:fs/promises';
@@ -21,9 +21,11 @@ import { join } from 'node:path';
 import type { ToolDefinition } from '../../types/index.js';
 import { BLOCKED_TOOL_NAMES } from './toolRegistry.js';
 
+export type { ImageContent } from '@mariozechner/pi-ai';
+
 /** Minimal interface for a running Pi agent session. */
 export interface Agent {
-  sendMessage(text: string): Promise<string>;
+  sendMessage(text: string, images?: ImageContent[]): Promise<string>;
 }
 
 export interface CreateAgentOptions {
@@ -194,11 +196,57 @@ export async function createAgent({
   });
 
   return {
-    async sendMessage(text: string): Promise<string> {
-      await piAgent.prompt(text);
+    async sendMessage(text: string, images?: ImageContent[]): Promise<string> {
+      // Prune conversation history to stay within token budget.
+      // Keep only the last MAX_HISTORY messages to prevent unbounded growth.
+      // Each tool call + result can be 10K+ tokens (SQL results), so we keep few turns.
+      const MAX_HISTORY = 10;
+      if (piAgent.state.messages.length > MAX_HISTORY) {
+        let sliceStart = piAgent.state.messages.length - MAX_HISTORY;
+        // Ensure we don't start on a 'toolResult' role message (orphan tool result
+        // without preceding assistant+tool_calls causes API 400 error).
+        while (sliceStart < piAgent.state.messages.length) {
+          const msg = piAgent.state.messages[sliceStart];
+          if (msg.role === 'toolResult') {
+            sliceStart++;
+          } else {
+            break;
+          }
+        }
+        piAgent.state.messages = piAgent.state.messages.slice(sliceStart);
+      }
+
+      try {
+        await piAgent.prompt(text, images);
+      } catch (err) {
+        const errMsg = (err as Error).message ?? '';
+        // If token limit exceeded or invalid tool message sequence, clear ALL history and retry
+        if (
+          errMsg.includes('token count') ||
+          errMsg.includes('exceeds the limit') ||
+          errMsg.includes('role \'tool\' must be a response') ||
+          errMsg.includes('role \'tool\'')
+        ) {
+          piAgent.state.messages = [];
+          await piAgent.prompt(text, images);
+        } else {
+          throw err;
+        }
+      }
 
       if (piAgent.state.errorMessage) {
-        throw new Error(piAgent.state.errorMessage);
+        const errMsg = piAgent.state.errorMessage;
+        // Auto-reset on token overflow error from the SDK
+        if (errMsg.includes('token count') || errMsg.includes('exceeds the limit')) {
+          piAgent.state.messages = [];
+          (piAgent.state as any).errorMessage = undefined;
+          await piAgent.prompt(text, images);
+          if (piAgent.state.errorMessage) {
+            throw new Error(piAgent.state.errorMessage);
+          }
+        } else {
+          throw new Error(errMsg);
+        }
       }
 
       // Walk messages in reverse to find the last completed assistant turn.

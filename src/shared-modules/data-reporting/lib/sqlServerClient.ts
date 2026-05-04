@@ -55,7 +55,7 @@ export class SqlServerClient {
     return this.pool;
   }
 
-  async query(sqlText: string): Promise<QueryResult> {
+  async query(sqlText: string, maxRowsOverride?: number): Promise<QueryResult> {
     const start = Date.now();
     const pool = await this.getPool();
     const request = pool.request();
@@ -63,9 +63,10 @@ export class SqlServerClient {
     const result = await request.query(sqlText);
     const durationMs = Date.now() - start;
 
+    const limit = maxRowsOverride ?? this.cfg.maxRows;
     const allRows = (result.recordset ?? []) as Record<string, unknown>[];
-    const truncated = allRows.length > this.cfg.maxRows;
-    const rows = truncated ? allRows.slice(0, this.cfg.maxRows) : allRows;
+    const truncated = allRows.length > limit;
+    const rows = truncated ? allRows.slice(0, limit) : allRows;
     const columns = allRows.length > 0 ? Object.keys(allRows[0]) : [];
 
     logger.debug(

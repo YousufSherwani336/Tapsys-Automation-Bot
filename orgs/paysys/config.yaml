@@ -2,12 +2,13 @@ orgSlug: paysys
 
 # ── WhatsApp Group ─────────────────────────────────────────────────────────────
 whatsapp:
-  groupId: "120363426650469651@g.us"   # NBP <-> Tapsys group
+  # groupId: "120363426650469651@g.us"   # LOCAL TESTING GROUP (old)
+  groupId: "120363426697242695@g.us"
   requireMention: true                  # only respond when bot (@03162392033) is tagged
 
 # ── Group metadata (informational — used by audit log and prompts) ─────────────
 group:
-  displayName: "NBP <-> Tapsys"
+  displayName: "Testing Group"
   botMentionNumber: "03162392033"       # local Pakistani format; WhatsApp JID = 923162392033@s.whatsapp.net
 
 # ── Active database profile ────────────────────────────────────────────────────

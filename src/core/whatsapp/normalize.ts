@@ -66,8 +66,14 @@ export function normalizeMessage(
   // ── Mention detection ──────────────────────────────────────────────────
   let isMentioned = false;
 
+  // mentionedJid can live in contextInfo of any message type
+  const contextInfo =
+    msg.extendedTextMessage?.contextInfo ??
+    msg.imageMessage?.contextInfo ??
+    msg.videoMessage?.contextInfo ??
+    msg.documentMessage?.contextInfo;
   const mentionedJids: string[] =
-    (msg.extendedTextMessage?.contextInfo?.mentionedJid as string[] | undefined) ?? [];
+    (contextInfo?.mentionedJid as string[] | undefined) ?? [];
 
   if (botJid) {
     // Normalize bot number: "923268002380:22@s.whatsapp.net" → "923268002380"
@@ -95,8 +101,12 @@ export function normalizeMessage(
   // WhatsApp newer clients use @lid (Linked ID) format instead of phone numbers.
   // botLid may be "60349306933430:22@lid"; mentionedJid is "60349306933430@lid" (no device suffix).
   if (!isMentioned && botLid) {
-    const botLidBase = botLid.split(':')[0]; // "60349306933430:22@lid" → "60349306933430"
+    const botLidBase = botLid.split(':')[0].split('@')[0]; // "60349306933430:22@lid" → "60349306933430"
     if (mentionedJids.some((m) => m.startsWith(botLidBase))) {
+      isMentioned = true;
+    }
+    // Also check text for @<lidBase> pattern (some clients embed LID in caption text)
+    if (!isMentioned && text.includes(`@${botLidBase}`)) {
       isMentioned = true;
     }
   }

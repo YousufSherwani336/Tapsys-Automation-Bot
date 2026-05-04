@@ -14,9 +14,12 @@ import { AuditLogger } from './lib/auditLogger.js';
 import { MemoryStore } from './lib/memoryStore.js';
 import { buildExecuteSqlTool } from './tools/executeSafeSql.js';
 import { buildRenderReportTool } from './tools/renderReportImage.js';
+import { buildRenderExcelTool } from './tools/renderExcelReport.js';
 import { buildGetMemoryTool } from './tools/getReportMemory.js';
 import { buildUpdateMemoryTool } from './tools/updateReportMemory.js';
 import { buildSystemStatusTool } from './tools/systemStatus.js';
+import { buildSendEmailTool } from './tools/sendEmail.js';
+import { EmailClient, buildSmtpConfig } from './lib/emailClient.js';
 
 const logger = pino({ name: 'data-reporting-adapter' });
 
@@ -65,6 +68,15 @@ export function applyDataReportingModule({ loadedModule, orgEnv, registry }: Ada
   // Init is async — fire and forget; store handles its own unavailability gracefully.
   memoryStore.init().catch((err) => logger.warn({ err }, 'Memory store init failed'));
 
+  // Email client — optional, only if SMTP is configured
+  let emailClient: EmailClient | null = null;
+  try {
+    const smtpCfg = buildSmtpConfig(orgEnv);
+    emailClient = new EmailClient(smtpCfg);
+  } catch (err) {
+    logger.warn({ err }, 'SMTP config incomplete — send_email tool will not be available');
+  }
+
   // ── Register tools ───────────────────────────────────────────────────────
   // Use a placeholder JID for tool construction — the actual from JID is
   // injected at tool call time via the audit logger entry.
@@ -73,9 +85,11 @@ export function applyDataReportingModule({ loadedModule, orgEnv, registry }: Ada
   const allTools = [
     buildExecuteSqlTool(db, audit, PLACEHOLDER_JID),
     buildRenderReportTool(renderer, audit, PLACEHOLDER_JID, outputDir, timezone),
+    buildRenderExcelTool(audit, PLACEHOLDER_JID, outputDir),
     buildGetMemoryTool(memoryStore),
     buildUpdateMemoryTool(memoryStore),
     buildSystemStatusTool(db, memoryStore, orgEnv),
+    ...(emailClient ? [buildSendEmailTool(emailClient, audit, PLACEHOLDER_JID)] : []),
   ];
 
   for (const tool of allTools) {

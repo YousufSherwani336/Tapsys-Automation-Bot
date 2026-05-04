@@ -44,3 +44,7 @@ Thumbs.db
 *.swo
 
 auth.json
+
+# ── Local runtime artifacts ──────────────────────────────────────────────────
+data/
+output/
